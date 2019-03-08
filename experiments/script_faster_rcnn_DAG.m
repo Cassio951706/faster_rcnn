@@ -1,9 +1,12 @@
-function script_faster_rcnn_demo()
-% caffe.reset_all();
+function aboxes = script_faster_rcnn_DAG()
 close all;
 clc;
 clear mex;
 clear is_valid_handle; % to clear init_key
+
+cur_dir = pwd;
+cd('/home/xy/workspace/faster_rcnn/experiments');
+
 run(fullfile(fileparts(fileparts(mfilename('fullpath'))), 'startup'));
 %% -------------------- CONFIG --------------------
 % opts.caffe_version          = 'caffe_faster_rcnn';
@@ -11,8 +14,8 @@ opts.gpu_id                 = auto_select_gpu;
 active_caffe_mex(opts.gpu_id);
 
 opts.per_nms_topN           = 6000;
-opts.nms_overlap_thres      = 0.7;
-opts.after_nms_topN         = 300;
+opts.nms_overlap_thres      = 0.9;
+opts.after_nms_topN         = 3000;
 opts.use_gpu                = true;
 
 opts.test_scales            = 600;
@@ -65,13 +68,12 @@ for j = 1:2 % we warm up 2 times
 end
 
 %% -------------------- TESTING --------------------
-im_names = {'001763.jpg', '004545.jpg', '000542.jpg', '000456.jpg', '001150.jpg'};
-% these images can be downloaded with fetch_faster_rcnn_final_model.m
-
 running_time = [];
-for j = 1:length(im_names)
+aboxes = [];
+
+for j = 1:length(imgids)
     
-    im = imread(fullfile(pwd, im_names{j}));
+    im = imread(sprintf(VOCopts.imgpath,imgids{j}));
     
     if opts.use_gpu
         im = gpuArray(im);
@@ -82,7 +84,7 @@ for j = 1:length(im_names)
     [boxes, scores]             = proposal_im_detect(proposal_detection_model.conf_proposal, rpn_net, im);
     t_proposal = toc(th);
     th = tic();
-    aboxes                      = boxes_filter([boxes, scores], opts.per_nms_topN, opts.nms_overlap_thres, opts.after_nms_topN, opts.use_gpu);
+    aboxes(j,:)                   = boxes_filter([boxes, scores], opts.per_nms_topN, opts.nms_overlap_thres, opts.after_nms_topN, opts.use_gpu);
     t_nms = toc(th);
       
     % test detection
@@ -90,14 +92,14 @@ for j = 1:length(im_names)
     if proposal_detection_model.is_share_feature
         [boxes, scores]             = fast_rcnn_conv_feat_detect(proposal_detection_model.conf_detection, fast_rcnn_net, im, ...
             rpn_net.blobs(proposal_detection_model.last_shared_output_blob_name), ...
-            aboxes(:, 1:4), opts.after_nms_topN);
+            aboxes(j, 1:4), opts.after_nms_topN);
     else
         [boxes, scores]             = fast_rcnn_im_detect(proposal_detection_model.conf_detection, fast_rcnn_net, im, ...
-            aboxes(:, 1:4), opts.after_nms_topN);
+            aboxes(j, 1:4), opts.after_nms_topN);
     end
     t_detection = toc(th);
     
-    fprintf('%s (%dx%d): time %.3fs (resize+conv+proposal: %.3fs, nms+regionwise: %.3fs)\n', im_names{j}, ...
+    fprintf('%s (%dx%d): time %.3fs (resize+conv+proposal: %.3fs, nms+regionwise: %.3fs)\n', imgids{j}, ...
         size(im, 2), size(im, 1), t_proposal + t_nms + t_detection, t_proposal, t_nms+t_detection);
     running_time(end+1) = t_proposal + t_nms + t_detection;
     
@@ -120,6 +122,8 @@ fprintf('mean time: %.3fs\n', mean(running_time));
 
 caffe.reset_all(); 
 clear mex;
+
+cd(cur_dir);
 
 end
 

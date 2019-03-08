@@ -17,12 +17,10 @@ function startup()
 
     mkdir_if_missing(fullfile(curdir, 'external'));
 
-    caffe_path = fullfile(curdir, 'external', 'caffe', 'matlab');
-    if exist(caffe_path, 'dir') == 0
-        error('matcaffe is missing from external/caffe/matlab; See README.md');
-    end
+    % add caffe matlab path   
+    caffe_path = '/home/du/gitcode/caffe-fast-rcnn/matlab/';
     addpath(genpath(caffe_path));
-
+    
     mkdir_if_missing(fullfile(curdir, 'imdb', 'cache'));
 
     mkdir_if_missing(fullfile(curdir, 'output'));
